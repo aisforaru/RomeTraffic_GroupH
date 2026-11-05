@@ -1,4 +1,10 @@
-"""Loader: downloads the ISTAT road-accident files and loads them into PostgreSQL."""
+"""Loader: downloads the ISTAT road-accident files and loads them into PostgreSQL.
+
+Usage:
+    python load_data.py                   # 100% of the data
+    python load_data.py --fraction 0.25   # 25% sample, stratified by year, nested
+"""
+import argparse
 import io
 import zipfile
 from pathlib import Path
@@ -11,6 +17,7 @@ DATA_DIR = Path("data/raw")
 YEARS = [2020, 2021, 2022, 2023, 2024]
 URL = ("https://www.istat.it/wp-content/themes/EGPbs5-child/microdata/download.php"
        "?file=%2F3%2F{year}%2F01%2F01.zip&filename=INCSTRAD_{year}_IT.zip")
+SEED = 42
 
 # ISTAT column -> our column (agreed in Step 0)
 COLUMNS = {
@@ -78,13 +85,25 @@ def clean(df, year):
     return df
 
 
-if __name__ == "__main__":
-    df = pd.concat([clean(read_year(y), y) for y in YEARS], ignore_index=True)
-    print(f"\nTotal: {len(df):,} rows, {len(df.columns)} columns")
-    print(df.head(3).T)                                      # first 3 accidents, sideways
+def sample(df, fraction):
+    """Stratified (by year), nested and reproducible sample."""
+    rng = np.random.default_rng(SEED)                        # fixed seed: same sample every run
+    u = pd.Series(rng.random(len(df)), index=df.index)       # one random number per row
+    pos = u.groupby(df["year"]).rank(pct=True)               # position inside its own year, 0-1
+    return df[pos <= fraction]                               # 25% sits inside 50%, 50% inside 100%
 
-    d24 = df[df["year"] == 2024]
-    lazio = d24[d24["province_code"].isin(["056", "057", "058", "059", "060"])]
-    rome = d24[(d24["province_code"] == "058") & (d24["municipality_code"] == "091")]
-    print(f"\n2024 checks: Lazio {len(lazio):,} (plan: 21,240), Rome city {len(rome):,} (plan: 13,924)")
-    print(f"Unknown hour (was 25): {df['hour'].isna().sum():,}")
+
+def load_all():
+    """Read and clean every year, then stack them oldest first."""
+    return pd.concat([clean(read_year(y), y) for y in sorted(YEARS)], ignore_index=True)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fraction", type=float, default=1.0, choices=[0.25, 0.5, 1.0],
+                        help="share of the data to load (default 1.0)")
+    args = parser.parse_args()
+
+    df = sample(load_all(), args.fraction)
+    print(f"\nfraction {args.fraction}: {len(df):,} rows")
+    print(df["year"].value_counts().sort_index().to_string())
