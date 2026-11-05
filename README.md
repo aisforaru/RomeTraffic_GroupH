@@ -6,11 +6,7 @@
 3.⁠ ⁠Is Rome more dangerous than the rest of Lazio?
 
 ## Team 
-Aruzhan Rakhmzhan
-Sofia De Santis
-Chiara Rossi
-Eldar Kurbanov
-Artem Shelygin
+Aruzhan Rakhmzhan, Sofia De Santis, Chiara Rossi, Eldar Kurbanov, Artem Shelygin
 
 ## Data
 ISTAT – Incidenti stradali con lesioni a persone, public-use microdata file (mIcro.STAT), year 2024.
