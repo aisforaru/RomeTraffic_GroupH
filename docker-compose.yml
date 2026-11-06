@@ -12,5 +12,15 @@ services:
       timeout: 5s
       retries: 10
 
+  loader:
+    build: ./loader
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   dbdata:
