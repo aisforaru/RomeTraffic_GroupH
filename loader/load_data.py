@@ -6,11 +6,14 @@ Usage:
 """
 import argparse
 import io
+import os
+import time
 import zipfile
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import psycopg
 import requests
 
 DATA_DIR = Path("data/raw")
@@ -40,6 +43,7 @@ COLUMNS = {
 }
 TEXT_COLS = ["province_code", "municipality_code"]           # keep leading zeros
 NUMBER_COLS = [c for c in COLUMNS.values() if c not in TEXT_COLS + ["year"]]
+TABLE_COLS = ["accident_id"] + list(COLUMNS.values())       # same order as schema.sql
 
 
 def download(year):
@@ -98,12 +102,62 @@ def load_all():
     return pd.concat([clean(read_year(y), y) for y in sorted(YEARS)], ignore_index=True)
 
 
+def connect():
+    """Connect to PostgreSQL. Inside Docker the host is the service name 'db'."""
+    return psycopg.connect(
+        host=os.environ.get("DB_HOST", "db"),
+        port=int(os.environ.get("DB_PORT", 5432)),
+        dbname=os.environ["POSTGRES_DB"],
+        user=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"],
+    )
+
+
+def wait_for_table(tries=30):
+    """Wait until the database is up and the accidents table exists (from schema.sql)."""
+    for _ in range(tries):
+        try:
+            with connect() as conn:
+                if conn.execute("SELECT to_regclass('accidents')").fetchone()[0]:
+                    return
+        except psycopg.OperationalError:
+            pass                                             # database not ready yet
+        print("waiting for the database and the accidents table...")
+        time.sleep(2)
+    raise SystemExit("accidents table not found: is schema.sql loaded in the db?")
+
+
+def load(df):
+    """Empty the table, then send all rows at once with COPY."""
+    buf = io.StringIO()
+    df[TABLE_COLS].to_csv(buf, index=False, header=False)   # empty cell = NULL
+    buf.seek(0)
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("TRUNCATE accidents")                    # every run starts clean
+        with cur.copy(f"COPY accidents ({', '.join(TABLE_COLS)}) FROM STDIN WITH (FORMAT csv)") as copy:
+            while chunk := buf.read(1 << 20):                # 1 MB at a time
+                copy.write(chunk)
+        n = cur.execute("SELECT count(*) FROM accidents").fetchone()[0]
+    print(f"accidents table now has {n:,} rows")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--fraction", type=float, default=1.0, choices=[0.25, 0.5, 1.0],
                         help="share of the data to load (default 1.0)")
     args = parser.parse_args()
 
+    t0 = time.perf_counter()
     df = sample(load_all(), args.fraction)
+    t1 = time.perf_counter()
     print(f"\nfraction {args.fraction}: {len(df):,} rows")
-    print(df["year"].value_counts().sort_index().to_string())
+
+    wait_for_table()
+    t2 = time.perf_counter()
+    load(df)
+    t3 = time.perf_counter()
+
+    # Person 5's benchmark can read these lines
+    print(f"TIME read+clean: {t1 - t0:.2f} s")
+    print(f"TIME copy into db: {t3 - t2:.2f} s")
+    print(f"TIME total: {t3 - t0:.2f} s")
