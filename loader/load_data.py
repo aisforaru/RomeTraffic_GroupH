@@ -1,8 +1,8 @@
 """Loader: downloads the ISTAT road-accident files and loads them into PostgreSQL.
-
 Usage:
     python load_data.py                   # 100% of the data
     python load_data.py --fraction 0.25   # 25% sample, stratified by year, nested
+    python load_data.py --dev             # 25% of Rome city only, for fast tests
 """
 import argparse
 import io
@@ -145,12 +145,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--fraction", type=float, default=1.0, choices=[0.25, 0.5, 1.0],
                         help="share of the data to load (default 1.0)")
+    parser.add_argument("--dev", action="store_true",
+                        help="load only 25%% of Rome city, for fast tests")
     args = parser.parse_args()
 
     t0 = time.perf_counter()
-    df = sample(load_all(), args.fraction)
+    df = load_all()
+    if args.dev:
+        rome = df[(df["province_code"] == "058") & (df["municipality_code"] == "091")]
+        df = sample(rome, 0.25)                              # same sampling rules, Rome city only
+        print(f"\n--dev: 25% of Rome city: {len(df):,} rows")
+    else:
+        df = sample(df, args.fraction)
+        print(f"\nfraction {args.fraction}: {len(df):,} rows")
     t1 = time.perf_counter()
-    print(f"\nfraction {args.fraction}: {len(df):,} rows")
 
     wait_for_table()
     t2 = time.perf_counter()
