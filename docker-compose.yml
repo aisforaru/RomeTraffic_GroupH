@@ -6,11 +6,25 @@ services:
       - "5432:5432"
     volumes:
       - dbdata:/var/lib/postgresql/data
+      - ./SQL/sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - "./SQL/sql/(ALREADY IN BUILD) sql/lookups.sql:/docker-entrypoint-initdb.d/02_lookups.sql:ro"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  loader:
+    build: ./loader
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
 
 volumes:
   dbdata:
