@@ -26,5 +26,19 @@ services:
     volumes:
       - ./data:/app/data
 
+  app:
+    build: ./app
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+    ports:
+      - "8501:8501"
+    depends_on:
+      db:
+        condition: service_healthy
+      loader:
+        condition: service_completed_successfully
+
 volumes:
   dbdata:
