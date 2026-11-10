@@ -8,6 +8,26 @@
 ## Team 
 Aruzhan Rakhmzhan, Sofia De Santis, Chiara Rossi, Eldar Kurbanov, Artem Shelygin
 
+## How to run
+
+**Requirements:** Docker Desktop (running) and Git. Nothing else is needed: Python, PostgreSQL and all the libraries run inside containers.
+
+```bash
+git clone https://github.com/aisforaru/RomeTraffic_GroupH.git
+cd RomeTraffic_GroupH
+cp .env.example .env            # Windows PowerShell: Copy-Item .env.example .env
+docker compose up --build -d
+```
+
+Then open **http://localhost:8501** in the browser.
+
+What happens after `docker compose up`:
+1. **db** starts PostgreSQL and, on the first start, creates the tables (`schema.sql`, `lookups.sql`).
+2. **loader** waits until the database is healthy, downloads the ISTAT files 2020–2024 (~38 MB, saved in `./data`), loads 775,951 accidents into the database and then stops. `Exited (0)` is normal: it means it finished without errors.
+3. **app** starts after the loader and serves the Streamlit dashboard on port 8501.
+
+The first run takes about 2 minutes (building the images and downloading the data). Later runs take about 30 seconds.
+
 ## Data
 ISTAT – Incidenti stradali con lesioni a persone, public-use microdata file (mIcro.STAT), year 2024.
 One row per accident with injuries in Italy (~173,000 rows, ~87 MB). We keep only Lazio
