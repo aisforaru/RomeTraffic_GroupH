@@ -140,14 +140,102 @@ with tab1:
         "are left out of the hour charts. ISTAT gives the weekday and quarter but not the exact date."
     )
 
-# ---------------------------------------------------------------- Q2 / Q3 (placeholders)
+# ---------------------------------------------------------------- Q2
 with tab2:
     st.subheader("Are accidents more serious in the rain, at night, or on certain road types?")
-    st.info("In progress. Add the Q2 queries to queries.py and the charts here.")
+    st.caption("Official ISTAT indices: Mortality Index = deaths / accidents × 100 · Injury Index = injured / accidents × 100")
 
+    weather_df = query("Q2 weather", q.Q2_BY_WEATHER, area, year)
+    surface_df = query("Q2 surface", q.Q2_BY_SURFACE, area, year)
+    lighting_df = query("Q2 lighting", q.Q2_BY_LIGHTING, area, year)
+
+    col_w, col_s = st.columns(2)
+
+    with col_w:
+        st.markdown("**Mortality index by weather condition**")
+        st.altair_chart(
+            alt.Chart(weather_df).mark_bar(color="#d95f02").encode(
+                x=alt.X("mortality_index:Q", title="Mortality Index (%)"),
+                y=alt.Y("weather:N", sort="-x", title=None),
+                tooltip=["weather", "accidents", "mortality_index", "injury_index"]
+            ),
+            use_container_width=True,
+        )
+
+    with col_s:
+        st.markdown("**Mortality index by road surface**")
+        st.altair_chart(
+            alt.Chart(surface_df).mark_bar(color="#7570b3").encode(
+                x=alt.X("mortality_index:Q", title="Mortality Index (%)"),
+                y=alt.Y("road_surface:N", sort="-x", title=None),
+                tooltip=["road_surface", "accidents", "mortality_index", "injury_index"]
+            ),
+            use_container_width=True,
+        )
+
+    st.markdown("**Night vs. Day severity**")
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.dataframe(
+            lighting_df[["lighting", "accidents", "mortality_index", "injury_index"]],
+            hide_index=True,
+            use_container_width=True
+        )
+    with c2:
+        st.altair_chart(
+            alt.Chart(lighting_df).mark_bar().encode(
+                x=alt.X("lighting:N", title=None, axis=alt.Axis(labelAngle=0)),
+                y=alt.Y("mortality_index:Q", title="Mortality Index (%)"),
+                color=alt.Color("lighting:N", legend=None),
+                tooltip=["lighting", "accidents", "mortality_index", "injury_index"]
+            ).properties(height=220),
+            use_container_width=True,
+        )
+
+# ---------------------------------------------------------------- Q3
 with tab3:
     st.subheader("Is Rome more dangerous than the rest of Lazio?")
-    st.info("In progress. Add the Q3 queries to queries.py and the charts here.")
+    st.caption("Comparing accident volume against fatal outcomes across Lazio territories.")
+
+    geo_df = query("Q3 geographic", q.Q3_GEOGRAPHIC, area="TRUE", year=year)
+
+    rome_city = geo_df[geo_df["area"] == "Rome (City)"].iloc[0]
+    rest_lazio = geo_df[geo_df["area"] != "Rome (City)"]
+    rest_mortality = (rest_lazio["deaths"].sum() / rest_lazio["accidents"].sum()) * 100
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Rome City accidents", f"{int(rome_city['accidents']):,}")
+    m2.metric("Rome City mortality index", f"{rome_city['mortality_index']:.2f}%")
+    m3.metric("Rest of Lazio mortality index", f"{rest_mortality:.2f}%", f"{rest_mortality - rome_city['mortality_index']:+.2f}%")
+
+    col_vol, col_rate = st.columns(2)
+    with col_vol:
+        st.markdown("**Total accident volume by area**")
+        st.altair_chart(
+            alt.Chart(geo_df).mark_bar().encode(
+                x=alt.X("area:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-25)),
+                y=alt.Y("accidents:Q", title="Accidents"),
+                tooltip=["area", "accidents", "deaths", "injured"]
+            ),
+            use_container_width=True,
+        )
+
+    with col_rate:
+        st.markdown("**Mortality index (% deaths per 100 accidents)**")
+        st.altair_chart(
+            alt.Chart(geo_df).mark_bar(color="#e7298a").encode(
+                x=alt.X("area:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-25)),
+                y=alt.Y("mortality_index:Q", title="Mortality Index (%)"),
+                tooltip=["area", "mortality_index", "injury_index"]
+            ),
+            use_container_width=True,
+        )
+
+    st.info(
+        "💡 **Key Finding:** Rome City concentrates the bulk of accidents (~66% of Lazio) due to traffic density, "
+        "but peripheral provinces (Frosinone, Latina, Viterbo, Rieti) have significantly higher mortality indices "
+        "due to higher vehicular speeds on extra-urban and provincial roads."
+    )
 
 # ---------------------------------------------------------------- timings (for the measurements)
 with st.expander("Query timings"):
