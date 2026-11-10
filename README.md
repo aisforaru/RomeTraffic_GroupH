@@ -28,6 +28,17 @@ What happens after `docker compose up`:
 
 The first run takes about 2 minutes (building the images and downloading the data). Later runs take about 30 seconds.
 
+### Useful commands
+
+| Command | What it does |
+|---|---|
+| `docker compose ps -a` | Shows all containers and their status (db should be `healthy`, loader `Exited (0)`, app `Up`) |
+| `docker compose logs -f loader` | Shows the loader messages and the load times (press Ctrl+C to stop watching) |
+| `docker compose down` | Stops everything; the data stays in the database volume |
+| `docker compose down -v` | Stops everything and **deletes the database**. Use it for a fresh start: the tables are created only when the database is new |
+
+If port 5432 or 8501 is already used on your laptop (for example by a local PostgreSQL), stop that program or change the left number in `ports:` in `docker-compose.yml`.
+
 ## Data
 ISTAT – Incidenti stradali con lesioni a persone, public-use microdata file (mIcro.STAT), year 2024.
 One row per accident with injuries in Italy (~173,000 rows, ~87 MB). We keep only Lazio
