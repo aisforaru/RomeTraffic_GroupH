@@ -206,8 +206,7 @@ with tab3:
     m1, m2, m3 = st.columns(3)
     m1.metric("Rome City accidents", f"{int(rome_city['accidents']):,}")
     m2.metric("Rome City mortality index", f"{rome_city['mortality_index']:.2f}%")
-    m3.metric("Rest of Lazio mortality index", f"{rest_mortality:.2f}%", f"{rest_mortality - rome_city['mortality_index']:+.2f}%")
-
+    m3.metric("Rest of Lazio mortality index", f"{rest_mortality:.2f}%", f"{rest_mortality - float(rome_city['mortality_index']):+.2f}%")
     col_vol, col_rate = st.columns(2)
     with col_vol:
         st.markdown("**Total accident volume by area**")
