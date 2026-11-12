@@ -62,3 +62,19 @@ A Streamlit dashboard with charts for the three questions.
 Load time, query time (with and without indexes), peak memory (docker stats)
 and database size on disk, with 25%, 50% and 100% of the data.
 
+### First results (checkpoint, 12 Nov)
+
+Full pipeline started with `docker compose up --build`, with 100% of the data (ISTAT 2020–2024, 775,951 accidents).
+Laptop: Windows, AMD Ryzen AI 7 350, 16 GB RAM.
+
+| Date | Run | Read + clean | Copy into db | Total loader time |
+|---|---|---|---|---|
+| 7 Nov | First run (ISTAT files downloaded) | 21.86 s | 2.81 s | 24.68 s |
+| 10 Nov | ISTAT files already in `./data` | 13.64 s | 3.68 s | 17.36 s |
+
+What we see so far:
+- Copying 775,951 rows into PostgreSQL with `COPY` takes less than 4 seconds: most of the time goes into reading and cleaning the five files.
+- Downloading the ISTAT files adds about 7 seconds, so later runs are faster.
+- From `docker compose up` (images already built): the database is ready after about 9 s, the loader finishes after about 27 s, then the dashboard starts. Building the images the first time takes about 64 s.
+
+Next steps: runs with 25%, 50% and 100% of the data (3 times each), queries with and without indexes, peak memory (`docker stats`) and database size compared with the original files.
