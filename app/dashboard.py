@@ -36,6 +36,13 @@ def run(sql, area="TRUE", year=None):
         cur.execute(sql.format(area=area), {"year": year})
         cols = [d.name for d in cur.description]
         df = pd.DataFrame(cur.fetchall(), columns=cols)
+    # PostgreSQL returns ROUND(...) as Decimal: turn those columns into normal numbers
+    for col in df.columns:
+        if df[col].dtype == object:
+            try:
+                df[col] = pd.to_numeric(df[col])
+            except (ValueError, TypeError):
+                pass
     return df, time.perf_counter() - t0
 
 
