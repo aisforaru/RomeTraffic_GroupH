@@ -104,6 +104,7 @@ with tab1:
     c2.metric(f"Busiest hour · {int(peak_hour['accidents']):,} accidents", f"{int(peak_hour['hour']):02d}:00")
     c3.metric(f"Busiest day · {int(peak_day['accidents']):,} accidents", peak_day["day"])
     c4.metric("Weekend day vs weekday", f"{weekend_avg / weekday_avg - 1:+.0%}")
+    st.caption(f"Deaths (within 30 days): {int(tot['deaths']):,} · Injured: {int(tot['injured']):,}")
 
     left, right = st.columns(2)
     with left:
