@@ -24,9 +24,9 @@ _FILTER = "WHERE {area} AND (%(year)s::int IS NULL OR year = %(year)s::int)"
 
 Q1_TOTALS = f"""
 SELECT count(*)                           AS accidents,
-       count(*) FILTER (WHERE hour IS NULL) AS unknown_hour,
-       coalesce(sum(injured), 0)          AS injured,
-       coalesce(sum(deaths_30d), 0)       AS deaths_30d
+        count(*) FILTER (WHERE hour IS NULL) AS unknown_hour,
+        coalesce(sum(injured), 0)          AS injured,
+        coalesce(sum(deaths_24h + deaths_30d), 0) AS deaths
 FROM accidents
 {_FILTER}
 """
