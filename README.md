@@ -58,6 +58,32 @@ and compare Rome with the rest of Lazio.
 ## What the user sees
 A Streamlit dashboard with charts for the three questions.
 
+## Results
+
+### Q1 · Which hours and days have the most accidents in Rome?
+
+Rome city (ISTAT codes 058/091), 2024: **13,924 accidents with injuries**,
+**134 deaths** within 30 days and **17,196 injured**.
+
+| Finding | Value |
+|---|---|
+| Busiest hour | **08:00**, 917 accidents |
+| Second peak | **18:00**, 909 accidents |
+| Quietest hours | **03:00–04:00**, 112 and 127 accidents |
+| Busiest day | **Friday**, 2,233 accidents |
+| Quietest day | **Sunday**, 1,421 accidents |
+| Weekend vs weekday | Saturdays and Sundays have **28% fewer** accidents per day than Monday–Friday |
+| Busiest single slot | **Tuesday 08:00**, 192 accidents |
+
+- On weekdays, accidents form two peaks: around **08:00** and **17:00–18:00**.
+- On weekends there is no clear morning peak. The accidents are spread more evenly over late morning and afternoon.
+- Between midnight and 05:00 there are far fewer accidents than during the day.
+
+**Limits of the data:** ISTAT rounds the hour, and 578 accidents (4%) have no
+recorded hour, so they are left out of the hour charts. The data gives the
+weekday and the quarter, but not the exact date, so holidays or specific days
+cannot be analysed.
+
 ## Measurements
 Load time, query time (with and without indexes), peak memory (docker stats)
 and database size on disk, with 25%, 50% and 100% of the data.
