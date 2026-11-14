@@ -103,4 +103,24 @@ What we see so far:
 - Downloading the ISTAT files adds about 7 seconds, so later runs are faster.
 - From `docker compose up` (images already built): the database is ready after about 9 s, the loader finishes after about 27 s, then the dashboard starts. Building the images the first time takes about 64 s.
 
-Next steps: runs with 25%, 50% and 100% of the data (3 times each), queries with and without indexes, peak memory (`docker stats`) and database size compared with the original files.
+### Scalability: 25%, 50% and 100% of the data (14 Nov)
+
+Script: `measure/benchmark.py` (run it with `python measure/benchmark.py`). It runs the loader 3 times for each fraction and reads the peak memory of the containers with `docker stats` every second. Raw results: `measure/results.csv`. Same laptop as above, with the dashboard off and other programs closed.
+
+| Data | Rows | Read + clean | Copy into db | Total loader time | Peak RAM loader | Peak RAM db |
+|---|---|---|---|---|---|---|
+| 25% | 193,986 | 7.70 s | 0.61 s | 8.33 s (7.91–8.68) | 408 MiB | 60 MiB |
+| 50% | 387,974 | 7.03 s | 1.08 s | 8.13 s (8.05–8.25) | 371 MiB | 104 MiB |
+| 100% | 775,951 | 6.95 s | 2.07 s | 9.03 s (8.81–9.20) | 395 MiB | 144 MiB |
+
+Times are the mean of 3 runs; min–max of the total in brackets.
+
+What we see:
+- **Copy into the database scales linearly:** doubling the rows roughly doubles the time (0.61 → 1.08 → 2.07 s), about 375,000 rows per second.
+- **Read + clean stays around 7 s** for every fraction, because the loader always reads all five ISTAT files and samples afterwards. This is the bottleneck: with 100% of the data it is 77% of the total time.
+- So **the total grows only from 8.3 s to 9.0 s** while the data becomes four times bigger.
+- **Loader memory stays around 400 MiB** for the same reason: all rows are in memory before sampling. **Database memory grows with the data:** 60 → 104 → 144 MiB.
+- The 3 runs differ by less than 0.8 s, so the results are stable. They are faster than the 10 Nov run (17.36 s) because the dashboard was off and fewer programs were open.
+- With much more data, the first thing to change would be the loader: reading the files in chunks would keep its memory low, while `COPY` already scales well.
+
+Still to add: queries with and without indexes, and database size on disk compared with the original ISTAT files.
