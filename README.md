@@ -50,6 +50,17 @@ PostgreSQL. Every accident has the same fixed columns, and most values are numer
 (e.g. weather 3 = rain), so we store one table of accidents plus small lookup tables
 that translate the codes, linked with SQL joins.
 
+## Database
+PostgreSQL 16 (`schema.sql`, `lookups.sql`). Every accident has the same fixed columns, and most values are numeric codes, so we use a star-like schema with one central fact table plus three small lookup tables linked via SQL joins:
+- **`accidents`** (775,951 rows, 17 columns): stores one row per accident (`accident_id` primary key, `year`, `province_code`, `municipality_code`, `weekday`, `quarter`, `hour`, road/weather codes, `deaths_24h`, `deaths_30d`, `injured`).
+- **`weather_lookup`**, **`road_surface_lookup`**, **`province_lookup`**: decode numeric ISTAT codes into human-readable labels.
+
+To speed up dashboard filters and joins, four B-tree indexes are created on `accidents`:
+- `idx_accidents_geo_year (province_code, municipality_code, year)` — speeds up area and year filters (`WHERE` clauses across Q1–Q3).
+- `idx_accidents_year (year)` — speeds up year-only filtering.
+- `idx_accidents_weather (weather)` and `idx_accidents_road_surface (road_surface)` — speed up joins and groupings in Q2.
+
+
 ## Processing
 Filter Lazio, translate codes, compute accidents by hour and day, severity
 (deaths + injured per accident) by weather, night/day and road type,
@@ -124,3 +135,24 @@ What we see:
 - With much more data, the first thing to change would be the loader: reading the files in chunks would keep its memory low, while `COPY` already scales well.
 
 Still to add: queries with and without indexes, and database size on disk compared with the original ISTAT files.
+
+
+### Query times (with and without indexes) and disk size
+
+Measured on 100% of the data (775,951 rows) in PostgreSQL 16 (GitHub Codespaces). Query times are the mean of 3 runs (`\timing on` in `psql`).
+
+| Query | Filter / Operation | Without indexes | With indexes | Speedup |
+|---|---|---|---|---|
+| Q1 (`Q1_HOUR_X_WEEKDAY`) | Rome city + 2024 | 84.0 ms | 4.5 ms | ~19× |
+| Q2 (`Q2_BY_WEATHER`) | Lazio + 2024 + join | 80.6 ms | 51.1 ms | ~1.6× |
+| Q3 (`Q3_GEOGRAPHIC`) | Lazio (all years) | 162.8 ms | 15.8 ms | ~10× |
+
+**Disk size (original ISTAT files vs PostgreSQL):**
+- Original ISTAT `.zip` files (`data/raw`): **~38 MB**
+- PostgreSQL database without custom indexes: **75 MB** (`accidents` table: 68 MB)
+- PostgreSQL database with 4 custom indexes: **114 MB** (`accidents` table + indexes: 107 MB; indexes take 39 MB)
+
+What we see:
+- **Composite index on `(province_code, municipality_code, year)` cuts Q1 latency by ~19×** (84.0 → 4.5 ms) and Q3 by ~10× (162.8 → 15.8 ms), avoiding full sequential scans on 775,951 rows.
+- **Q2 improves more moderately** (80.6 → 51.1 ms) because filtering across all 5 Lazio provinces in 2024 still aggregates a larger slice of rows and joins `weather_lookup`.
+- **Disk overhead is small:** the 4 B-tree indexes add 39 MB (bringing the total database to 114 MB vs ~38 MB of compressed ISTAT `.zip` archives), keeping all dashboard queries well under 55 ms.

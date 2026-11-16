@@ -17,3 +17,9 @@ CREATE TABLE IF NOT EXISTS accidents (
     deaths_30d SMALLINT,
     injured SMALLINT
 );
+
+
+CREATE INDEX IF NOT EXISTS idx_accidents_geo_year ON accidents (province_code, municipality_code, year);
+CREATE INDEX IF NOT EXISTS idx_accidents_year ON accidents (year);
+CREATE INDEX IF NOT EXISTS idx_accidents_weather ON accidents (weather);
+CREATE INDEX IF NOT EXISTS idx_accidents_road_surface ON accidents (road_surface);
