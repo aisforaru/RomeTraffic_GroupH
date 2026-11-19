@@ -46,7 +46,7 @@ One row per accident with injuries in Italy (~173,000 rows, ~87 MB). We keep onl
 Source: https://www.istat.it/microdati/incidenti-stradali-con-lesioni-a-persone/
 
 ## Database
-PostgreSQL 16 (`schema.sql`, `lookups.sql`). Every accident has the same fixed columns, and most values are numeric codes, so we use a star-like schema with one central fact table plus three small lookup tables linked via SQL joins:
+PostgreSQL 16 (`SQL/sql/schema.sql`, `SQL/sql/lookups.sql`). Every accident has the same fixed columns, and most values are numeric codes, so we use a star-like schema with one central fact table plus three small lookup tables linked via SQL joins:
 - **`accidents`** (775,951 rows, 17 columns): stores one row per accident (`accident_id` primary key, `year`, `province_code`, `municipality_code`, `weekday`, `quarter`, `hour`, road/weather codes, `deaths_24h`, `deaths_30d`, `injured`).
 - **`weather_lookup`**, **`road_surface_lookup`**, **`province_lookup`**: decode numeric ISTAT codes into human-readable labels.
 
@@ -129,6 +129,7 @@ What we see:
 - The 3 runs differ by less than 0.8 s, so the results are stable. They are faster than the 10 Nov run (17.36 s) because the dashboard was off and fewer programs were open.
 - With much more data, the first thing to change would be the loader: reading the files in chunks would keep its memory low, while `COPY` already scales well.
 
+
 ### Loading with indexes (16 Nov)
 
 Since 16 Nov the four indexes are created in `schema.sql`, before the data is loaded. We ran the same benchmark again on a fresh database (`docker compose down -v`). Raw results: `measure/results_with_indexes.csv`.
@@ -154,7 +155,6 @@ What we see:
 - Read + clean takes about 8 s here vs about 7 s on 14 Nov: same work, small differences between days on the same laptop.
 - **Trade-off:** our data is loaded once and queried many times, so the indexes are worth it: about 5 s more at startup, and dashboard queries up to 19× faster. With much more data, the usual fix is to load the data first and create the indexes afterwards, which is faster than updating them row by row.
 
-
 ### Query times (with and without indexes) and disk size
 
 Measured on 100% of the data (775,951 rows) in PostgreSQL 16 (GitHub Codespaces). Query times are the mean of 3 runs (`\timing on` in `psql`).
@@ -174,3 +174,9 @@ What we see:
 - **Composite index on `(province_code, municipality_code, year)` cuts Q1 latency by ~19×** (84.0 → 4.5 ms) and Q3 by ~10× (162.8 → 15.8 ms), avoiding full sequential scans on 775,951 rows.
 - **Q2 improves more moderately** (80.6 → 51.1 ms) because filtering across all 5 Lazio provinces in 2024 still aggregates a larger slice of rows and joins `weather_lookup`.
 - **Disk overhead is small:** the 4 B-tree indexes add 39 MB (bringing the total database to 114 MB vs ~38 MB of compressed ISTAT `.zip` archives), keeping all dashboard queries well under 55 ms.
+
+
+
+## Who did what
+- **Sofia De Santis:** Database schema (`schema.sql`), lookup tables (`lookups.sql`), query indexing, and query latency & disk-size benchmarks.
+
