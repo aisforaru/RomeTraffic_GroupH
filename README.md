@@ -56,17 +56,6 @@ To speed up dashboard filters and joins, four B-tree indexes are created on `acc
 - `idx_accidents_weather (weather)` and `idx_accidents_road_surface (road_surface)` — speed up joins and groupings in Q2.
 
 
-## Database
-PostgreSQL 16 (`schema.sql`, `lookups.sql`). Every accident has the same fixed columns, and most values are numeric codes, so we use a star-like schema with one central fact table plus three small lookup tables linked via SQL joins:
-- **`accidents`** (775,951 rows, 17 columns): stores one row per accident (`accident_id` primary key, `year`, `province_code`, `municipality_code`, `weekday`, `quarter`, `hour`, road/weather codes, `deaths_24h`, `deaths_30d`, `injured`).
-- **`weather_lookup`**, **`road_surface_lookup`**, **`province_lookup`**: decode numeric ISTAT codes into human-readable labels.
-
-To speed up dashboard filters and joins, four B-tree indexes are created on `accidents`:
-- `idx_accidents_geo_year (province_code, municipality_code, year)` — speeds up area and year filters (`WHERE` clauses across Q1–Q3).
-- `idx_accidents_year (year)` — speeds up year-only filtering.
-- `idx_accidents_weather (weather)` and `idx_accidents_road_surface (road_surface)` — speed up joins and groupings in Q2.
-
-
 ## Processing
 Filter Lazio, translate codes, compute accidents by hour and day, severity
 (deaths + injured per accident) by weather, night/day and road type,
@@ -120,9 +109,9 @@ What we see so far:
 - Downloading the ISTAT files adds about 7 seconds, so later runs are faster.
 - From `docker compose up` (images already built): the database is ready after about 9 s, the loader finishes after about 27 s, then the dashboard starts. Building the images the first time takes about 64 s.
 
-### Scalability: 25%, 50% and 100% of the data (14 Nov)
+### Scalability: 25%, 50% and 100% of the data, without indexes (14 Nov)
 
-Script: `measure/benchmark.py` (run it with `python measure/benchmark.py`). It runs the loader 3 times for each fraction and reads the peak memory of the containers with `docker stats` every second. Raw results: `measure/results.csv`. Same laptop as above, with the dashboard off and other programs closed.
+Script: `measure/benchmark.py` (run it with `python measure/benchmark.py`). It runs the loader 3 times for each fraction and reads the peak memory of the containers with `docker stats` every second. Raw results: `measure/results_no_indexes.csv`. Same laptop as above, with the dashboard off and other programs closed.
 
 | Data | Rows | Read + clean | Copy into db | Total loader time | Peak RAM loader | Peak RAM db |
 |---|---|---|---|---|---|---|
@@ -140,6 +129,31 @@ What we see:
 - The 3 runs differ by less than 0.8 s, so the results are stable. They are faster than the 10 Nov run (17.36 s) because the dashboard was off and fewer programs were open.
 - With much more data, the first thing to change would be the loader: reading the files in chunks would keep its memory low, while `COPY` already scales well.
 
+
+### Loading with indexes (16 Nov)
+
+Since 16 Nov the four indexes are created in `schema.sql`, before the data is loaded. We ran the same benchmark again on a fresh database (`docker compose down -v`). Raw results: `measure/results_with_indexes.csv`.
+
+| Data | Rows | Read + clean | Copy into db | Total loader time | Peak RAM loader | Peak RAM db |
+|---|---|---|---|---|---|---|
+| 25% | 193,986 | 8.11 s | 1.30 s | 9.43 s (9.06–9.95) | 476 MiB | 94 MiB |
+| 50% | 387,974 | 7.86 s | 2.51 s | 10.40 s (9.67–10.76) | 412 MiB | 148 MiB |
+| 100% | 775,951 | 7.81 s | 6.10 s | 13.93 s (13.02–14.75) | 481 MiB | 215 MiB |
+
+Copy into the database, without vs with indexes:
+
+| Data | Without indexes | With indexes | Slower by |
+|---|---|---|---|
+| 25% | 0.61 s | 1.30 s | 2.1× |
+| 50% | 1.08 s | 2.51 s | 2.3× |
+| 100% | 2.07 s | 6.10 s | 2.9× |
+
+What we see:
+- **Indexes make queries much faster but loading slower:** with 100% of the data, copying takes 6.10 s instead of 2.07 s, because PostgreSQL updates the four indexes for every row it inserts. The total loader time goes from 9.03 s to 13.93 s.
+- **With indexes, copy no longer scales linearly:** from 50% to 100% the copy time grows 2.4×, because the indexes get bigger and each insert costs a bit more.
+- **Database memory is higher** (215 MiB instead of 144 MiB with 100% of the data), because the indexes are also kept in memory.
+- Read + clean takes about 8 s here vs about 7 s on 14 Nov: same work, small differences between days on the same laptop.
+- **Trade-off:** our data is loaded once and queried many times, so the indexes are worth it: about 5 s more at startup, and dashboard queries up to 19× faster. With much more data, the usual fix is to load the data first and create the indexes afterwards, which is faster than updating them row by row.
 
 ### Query times (with and without indexes) and disk size
 
