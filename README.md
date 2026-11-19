@@ -46,9 +46,15 @@ One row per accident with injuries in Italy (~173,000 rows, ~87 MB). We keep onl
 Source: https://www.istat.it/microdati/incidenti-stradali-con-lesioni-a-persone/
 
 ## Database
-PostgreSQL. Every accident has the same fixed columns, and most values are numeric codes
-(e.g. weather 3 = rain), so we store one table of accidents plus small lookup tables
-that translate the codes, linked with SQL joins.
+PostgreSQL 16 (`SQL/sql/schema.sql`, `SQL/sql/lookups.sql`). Every accident has the same fixed columns, and most values are numeric codes, so we use a star-like schema with one central fact table plus three small lookup tables linked via SQL joins:
+- **`accidents`** (775,951 rows, 17 columns): stores one row per accident (`accident_id` primary key, `year`, `province_code`, `municipality_code`, `weekday`, `quarter`, `hour`, road/weather codes, `deaths_24h`, `deaths_30d`, `injured`).
+- **`weather_lookup`**, **`road_surface_lookup`**, **`province_lookup`**: decode numeric ISTAT codes into human-readable labels.
+
+To speed up dashboard filters and joins, four B-tree indexes are created on `accidents`:
+- `idx_accidents_geo_year (province_code, municipality_code, year)` — speeds up area and year filters (`WHERE` clauses across Q1–Q3).
+- `idx_accidents_year (year)` — speeds up year-only filtering.
+- `idx_accidents_weather (weather)` and `idx_accidents_road_surface (road_surface)` — speed up joins and groupings in Q2.
+
 
 ## Database
 PostgreSQL 16 (`schema.sql`, `lookups.sql`). Every accident has the same fixed columns, and most values are numeric codes, so we use a star-like schema with one central fact table plus three small lookup tables linked via SQL joins:
@@ -134,8 +140,6 @@ What we see:
 - The 3 runs differ by less than 0.8 s, so the results are stable. They are faster than the 10 Nov run (17.36 s) because the dashboard was off and fewer programs were open.
 - With much more data, the first thing to change would be the loader: reading the files in chunks would keep its memory low, while `COPY` already scales well.
 
-Still to add: queries with and without indexes, and database size on disk compared with the original ISTAT files.
-
 
 ### Query times (with and without indexes) and disk size
 
@@ -156,3 +160,9 @@ What we see:
 - **Composite index on `(province_code, municipality_code, year)` cuts Q1 latency by ~19×** (84.0 → 4.5 ms) and Q3 by ~10× (162.8 → 15.8 ms), avoiding full sequential scans on 775,951 rows.
 - **Q2 improves more moderately** (80.6 → 51.1 ms) because filtering across all 5 Lazio provinces in 2024 still aggregates a larger slice of rows and joins `weather_lookup`.
 - **Disk overhead is small:** the 4 B-tree indexes add 39 MB (bringing the total database to 114 MB vs ~38 MB of compressed ISTAT `.zip` archives), keeping all dashboard queries well under 55 ms.
+
+
+
+## Who did what
+- **Sofia De Santis:** Database schema (`schema.sql`), lookup tables (`lookups.sql`), query indexing, and query latency & disk-size benchmarks.
+
